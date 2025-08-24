@@ -2,7 +2,6 @@ import Stripe from "stripe";
 import { Transaction } from "../models/Transaction.js";
 import { User } from "../models/User.js";
 
-// function for stripe webhooks
 export const stripeWebhooks = async (request, response) => {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
     const sig = request.headers["stripe-signature"]
@@ -14,8 +13,9 @@ export const stripeWebhooks = async (request, response) => {
         event = stripe.webhooks.constructEvent(request.body, sig, process.env.STRIPE_WEBHOOKS_SECRET)
 
     } catch (error) {
-        return response.status(404).send(`Webhook error : ${error.message}`)
+        return response.status(400).send(`Webhook error:${error.message}`)
     }
+
     try {
 
         switch (event.type) {
@@ -23,49 +23,33 @@ export const stripeWebhooks = async (request, response) => {
                 const paymentIntent = event.data.object;
                 const sessionList = await stripe.checkout.sessions.list({
                     payment_intent: paymentIntent.id,
-                });
+                })
                 const session = sessionList.data[0];
                 const { transactionId, appId } = session.metadata;
 
-                if (appId !== 'QuickGPT') {
-                    return response.json({ received: true, message: "Ignored event: Invalid app" });
-                }
+                if (appId === 'QuickGPT') {
+                    const transaction = await Transaction.findOne({ _id: transactionId, isPaid: false })
 
-                const transaction = await Transaction.findOne({ _id: transactionId });
-                if (!transaction) {
-                    console.log("Transaction not found");
-                    return response.json({ received: true, message: "Transaction not found" });
-                }
-                if (transaction.isPaid) {
-                    console.log("Transaction already paid");
-                    return response.json({ received: true, message: "Transaction already paid" });
-                }
+                    // update credits
+                    await User.updateOne({ _id: transaction.userId }, { $inc: { credits: transaction.credits } })
 
-                // Update user credits
-                await User.updateOne(
-                    { _id: transaction.userId },
-                    { $inc: { credits: transaction.credits } }
-                );
-
-                // Mark transaction as paid
-                transaction.isPaid = true;
-                await transaction.save();
-                console.log("Transaction updated successfully");
+                    // update credit payment status
+                    transaction.isPaid = true;
+                    await transaction.save();
+                } else {
+                    return response.json({ received: true, message: "Ignored event: Invalid app" })
+                }
                 break;
             }
-
-
-
             default:
                 console.log("Unhandled event type:", event.type);
-
                 break;
         }
-
         response.json({ received: true })
 
     } catch (error) {
-        console.error("Webhook processing error:", error);
+        console.error("webhook processing error:", error);
         response.status(500).send("Internal server error")
     }
+
 }
