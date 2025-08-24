@@ -23,29 +23,37 @@ export const stripeWebhooks = async (request, response) => {
                 const paymentIntent = event.data.object;
                 const sessionList = await stripe.checkout.sessions.list({
                     payment_intent: paymentIntent.id,
-                })
-
+                });
                 const session = sessionList.data[0];
                 const { transactionId, appId } = session.metadata;
 
-                if (appId === 'QuickGPT') {
-                    const transaction = await Transaction.findOne({ _id: transactionId, isPaid: false })
-
-                    // update credits in user account
-                    await User.updateOne({ _id: transaction.userId }, {
-                        $inc: {
-                            credits: transaction.credits
-                        }
-                    })
-
-                    //update credit payment status
-                    transaction.isPaid = true
-                    await transaction.save()
-                } else {
-                    return response.json({ received: true, message: "Ignored event: Invalid app" })
+                if (appId !== 'QuickGPT') {
+                    return response.json({ received: true, message: "Ignored event: Invalid app" });
                 }
+
+                const transaction = await Transaction.findOne({ _id: transactionId });
+                if (!transaction) {
+                    console.log("Transaction not found");
+                    return response.json({ received: true, message: "Transaction not found" });
+                }
+                if (transaction.isPaid) {
+                    console.log("Transaction already paid");
+                    return response.json({ received: true, message: "Transaction already paid" });
+                }
+
+                // Update user credits
+                await User.updateOne(
+                    { _id: transaction.userId },
+                    { $inc: { credits: transaction.credits } }
+                );
+
+                // Mark transaction as paid
+                transaction.isPaid = true;
+                await transaction.save();
+                console.log("Transaction updated successfully");
                 break;
             }
+
 
 
             default:
