@@ -127,7 +127,6 @@ const ChatBox = () => {
           value={prompt}
           style={{ height: '100px', resize: 'vertical' }}
         />
-        <p>You entered: {prompt}</p> {/* For demonstration */}
         <button type='submit' disabled={loading}>
           <img
             src={loading ? assets.stop_icon : assets.send_icon}
