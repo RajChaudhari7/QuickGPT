@@ -119,14 +119,15 @@ const ChatBox = () => {
           <option value='text'>Text</option>
           <option value='image'>Image</option>
         </select>
-        <input
-          type='text'
+        <textarea
           placeholder='Type your prompt here.. & for generating image select image from dropdown👈'
           className='flex-1 w-full text-sm outline-none bg-transparent dark:text-white'
           required
           onChange={(e) => setPrompt(e.target.value)}
           value={prompt}
+          style={{ height: '100px', resize: 'vertical' }}
         />
+        <p>You entered: {prompt}</p> {/* For demonstration */}
         <button type='submit' disabled={loading}>
           <img
             src={loading ? assets.stop_icon : assets.send_icon}
